@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airport Security Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7f9fc; }
+        .card { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06); }
+        .wait-time-good { background-color: #d1fae5; color: #065f46; } /* Green */
+        .wait-time-moderate { background-color: #fffac2; color: #a16207; } /* Yellow */
+        .wait-time-bad { background-color: #fee2e2; color: #991b1b; } /* Red */
+        .status-badge { transition: all 0.3s ease; }
+        .tab-active { border-bottom: 3px solid #3b82f6; font-weight: 600; color: #1e40af; }
+        .tab-inactive { color: #6b7280; }
+        .tab-inactive:hover { color: #1f2937; }
+        .badge-pill { font-size: 0.75rem; padding: 0.25rem 0.6rem; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <!-- Loading overlay removed for instant client-side load -->
+
+    <header class="text-center mb-6">
+        <h1 class="text-4xl font-extrabold text-gray-900">🛫 Security Tracker Hub</h1>
+        <p class="text-lg text-gray-500 mt-2">Personalized wait times and AI predictions</p>
+    </header>
+
+    <main class="max-w-6xl mx-auto">
+        
+        <!-- Airport Selector, Tabs, and Favorites -->
+        <div class="card bg-white p-6 rounded-xl mb-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <span id="current-airport-name" class="text-blue-600">San Francisco - T3 (United)</span>
+                <span id="favorite-status-icon" class="ml-2 text-xl cursor-pointer" title="Add/Remove Favorite">☆</span>
+            </h2>
+            <div class="flex flex-col sm:flex-row gap-4 mb-4">
+                <select id="airport-selector" class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                    <!-- Options populated by JavaScript -->
+                </select>
+                <!-- Flight Integration Placeholder -->
+                <button id="flight-integration" class="bg-purple-600 text-white font-semibold py-3 px-4 rounded-xl shadow-md flex items-center justify-center text-sm w-full sm:w-auto hover:bg-purple-700" disabled>
+                    ✈️ Integrate Flight
+                </button>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <div class="flex border-b border-gray-200">
+                <button id="tab-realtime" class="py-3 px-4 text-sm focus:outline-none transition-all tab-active">
+                    Real-Time Wait Times
+                </button>
+                <button id="tab-trends" class="py-3 px-4 text-sm focus:outline-none transition-all tab-inactive">
+                    Trends & Prediction
+                </button>
+            </div>
+        </div>
+
+        <!-- VIEW CONTAINER -->
+        <div id="view-container" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Real-Time View (Default) -->
+            <section id="real-time-view" class="lg:col-span-2 space-y-6">
+                
+                <!-- Wait Times Display -->
+                <div id="wait-time-display" class="card bg-white p-6 rounded-xl">
+                    <h2 class="text-2xl font-bold text-gray-800 border-b pb-3 mb-4 flex items-center">
+                        Current Checkpoint Status 
+                        <span id="last-updated" class="ml-auto text-sm font-medium text-gray-400"></span>
+                    </h2>
+                    <div id="wait-time-cards">
+                        <p class="text-gray-500 text-center py-8">Loading real-time data...</p>
+                    </div>
+                </div>
+
+                <!-- Report Wait Time (Crowdsourcing Simulation) -->
+                <div class="card bg-white p-6 rounded-xl">
+                    <h2 class="text-2xl font-bold text-gray-800 border-b pb-3 mb-4">Report Current Wait Time (Session Only)</h2>
+                    <div class="space-y-4">
+                        <p class="text-sm text-gray-600">Report the current wait time to update the tracker for this session.</p>
+                        <div class="flex flex-col sm:flex-row gap-4">
+                            <select id="report-checkpoint" class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                                <option value="" disabled selected>Select Checkpoint Type</option>
+                                <option value="General">General Security</option>
+                                <option value="PreCheck">TSA PreCheck</option>
+                                <option value="Premium">Premium/Clear</option>
+                            </select>
+                            <input type="number" id="report-time" placeholder="Wait time in minutes (e.g., 25)" min="1" max="120" class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <button id="submit-report" class="bg-blue-600 text-white font-semibold py-3 rounded-xl shadow-md hover:bg-blue-700 w-full" disabled>
+                            Submit Wait Time
+                        </button>
+                        <p id="report-message" class="text-center text-sm hidden"></p>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- Trends & Prediction View (Hidden by default) -->
+            <section id="trends-view" class="lg:col-span-3 space-y-6 hidden">
+                <div class="card bg-white p-6 rounded-xl">
+                    <h2 class="text-2xl font-bold text-gray-800 border-b pb-3 mb-4">
+                        Historical Trend & AI Prediction (General Checkpoint)
+                    </h2>
+                    <div class="flex justify-end mb-4">
+                        <select id="trend-checkpoint-selector" class="p-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="General">General Checkpoint</option>
+                            <option value="PreCheck">TSA PreCheck</option>
+                            <option value="Premium">Premium/Clear</option>
+                        </select>
+                    </div>
+                    <div class="relative h-96">
+                        <canvas id="wait-time-chart"></canvas>
+                    </div>
+                    <div class="mt-6 p-4 bg-blue-50 rounded-lg">
+                        <h3 class="font-semibold text-blue-800">🔮 AI Prediction Analysis:</h3>
+                        <p id="ai-prediction-summary" class="text-sm text-blue-700 mt-1">Analyzing historical data to generate forecast...</p>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- Sidebar Content (Visible in Real-Time View) -->
+            <section id="sidebar-content" class="lg:col-span-1 space-y-6">
+
+                <!-- Live Line Status (Visual Simulation) -->
+                <div id="live-line-status" class="card bg-white p-6 rounded-xl text-center">
+                    <h2 class="text-2xl font-bold text-gray-800 border-b pb-3 mb-4">Live Line Status</h2>
+                    <div id="live-view-container">
+                        <p class="text-gray-400 text-sm py-4">Status loads after airport selection.</p>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-4">
+                        *This visual updates based on the current highest reported wait time.
+                    </p>
+                </div>
+
+                <!-- Can I Bring This? (Gemini API Feature) -->
+                <div class="card bg-white p-6 rounded-xl">
+                    <h2 class="text-2xl font-bold text-gray-800 border-b pb-3 mb-4">Can I Bring This?</h2>
+                    <p class="text-sm text-gray-600 mb-4">Check TSA guidelines quickly using AI assistance.</p>
+                    <input type="text" id="tsa-item-query" placeholder="e.g., 'Laptop in checked bag' or 'Small scissors'" class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-blue-500 focus:border-blue-500">
+                    <button id="search-tsa-item" class="bg-indigo-600 text-white font-semibold py-3 rounded-xl shadow-md hover:bg-indigo-700 w-full">
+                        Check Item Status
+                    </button>
+                    <div id="tsa-item-result" class="mt-4 p-4 bg-gray-50 rounded-lg text-sm hidden">
+                        <p id="tsa-result-text" class="text-gray-700"></p>
+                        <div id="tsa-loading" class="hidden text-center text-blue-600 font-medium">
+                            <div class="animate-pulse">Analyzing TSA guidelines...</div>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+        </div>
+    </main>
+
+    <script type="module">
+        // --- GLOBAL CONFIGURATION (MOCK DATA & STATE) ---
+        
+        // Data Structure for Available Airports
+        const AVAILABLE_AIRPORTS = [
+            { id: "SFO_T3", code: "SFO", terminal: "T3", name: "San Francisco - T3 (United)" },
+            { id: "LAX_T1", code: "LAX", terminal: "T1", name: "Los Angeles - T1 (Southwest)" },
+            { id: "JFK_T4", code: "JFK", terminal: "T4", name: "New York - T4 (Delta/International)" }
+        ];
+
+        let MOCK_WAIT_TIME_DATA = {}; // Local in-memory store for all airport data
+        let currentAirportId = AVAILABLE_AIRPORTS[0].id; // Default
+        let currentAirportData = null; // Store the currently loaded wait time data
+        let waitTimeChart = null; // Chart.js instance
+
+        // --- AUTHENTICATION/INITIALIZATION (SIMPLIFIED) ---
+        
+        const generateMockHistoricalData = (type, historicalAvg) => {
+            const data = [];
+            // Generate 24 hourly data points
+            for (let i = 0; i < 24; i++) {
+                const noise = (Math.random() - 0.5) * 10; // Noise up to +/- 5 minutes
+                const sin = Math.sin((i / 24) * 2 * Math.PI) * 5; // Simulates daily low/high
+                let base = historicalAvg + sin + noise;
+                
+                let avgWait = Math.max(2, Math.round(base));
+                
+                data.push({
+                    hourOffset: 23 - i, // 23 hours ago down to 0 hours ago
+                    avgWait: avgWait,
+                    type: type
+                });
+            }
+            return data.sort((a, b) => b.hourOffset - a.hourOffset); // Sort newest (0h ago) to oldest (23h ago)
+        };
+
+        const defaultDataTemplate = (airportId) => {
+            const checkpoints = [
+                { name: "General Checkpoint A", type: "General", waitTimeMinutes: Math.floor(Math.random() * 15) + 10, historicalAverage: 20 },
+                { name: "PreCheck Checkpoint B", type: "PreCheck", waitTimeMinutes: Math.floor(Math.random() * 5) + 5, historicalAverage: 10 },
+                { name: "Premium Checkpoint C", type: "Premium", waitTimeMinutes: Math.floor(Math.random() * 3) + 2, historicalAverage: 5 }
+            ];
+            
+            let historicalData = [];
+            checkpoints.forEach(cp => {
+                historicalData = historicalData.concat(generateMockHistoricalData(cp.type, cp.historicalAverage));
+            });
+            
+            return {
+                airportCode: airportId.split('_')[0],
+                terminal: airportId.split('_')[1],
+                lastUpdated: Date.now(),
+                checkpoints: checkpoints,
+                historicalData: historicalData
+            };
+        };
+
+        const setupInitialData = () => {
+            // Populate the local MOCK_WAIT_TIME_DATA object
+            AVAILABLE_AIRPORTS.forEach(airport => {
+                MOCK_WAIT_TIME_DATA[airport.id] = defaultDataTemplate(airport.id);
+            });
+            console.log("Mock data initialized locally.");
+        };
+
+        // --- App Start ---
+        window.onload = () => {
+            setupInitialData();
+            setupNavigation();
+            setupAirportSelector();
+            setupTrendSelector();
+            // Since favorites are now just in-memory for this session,
+            // we initialize them here.
+            loadWaitTimeData(currentAirportId);
+        };
+        
+        // --- NAVIGATION & TABS ---
+        const setupNavigation = () => {
+            const tabs = {
+                'tab-realtime': 'real-time-view',
+                'tab-trends': 'trends-view'
+            };
+            const sidebar = document.getElementById('sidebar-content');
+
+            document.querySelectorAll('[id^="tab-"]').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const viewId = tabs[tab.id];
+
+                    // Update active tab styles
+                    document.querySelectorAll('[id^="tab-"]').forEach(t => {
+                        t.classList.remove('tab-active');
+                        t.classList.add('tab-inactive');
+                    });
+                    tab.classList.add('tab-active');
+                    tab.classList.remove('tab-inactive');
+
+                    // Show/hide views
+                    document.getElementById('real-time-view').classList.add('hidden');
+                    document.getElementById('trends-view').classList.add('hidden');
+                    document.getElementById(viewId).classList.remove('hidden');
+
+                    // Handle sidebar visibility (only show sidebar in Real-Time View)
+                    sidebar.classList.toggle('hidden', viewId !== 'real-time-view');
+                    
+                    // Force the chart to redraw if the trends view is selected
+                    if (viewId === 'trends-view' && currentAirportData) {
+                         const trendType = document.getElementById('trend-checkpoint-selector').value;
+                         renderTrendsView(currentAirportData, trendType);
+                    }
+                });
+            });
+        };
+
+        // --- UI & DATA LOADING LOGIC (LOCAL DATA) ---
+        
+        const setupAirportSelector = () => {
+            const selector = document.getElementById('airport-selector');
+            selector.innerHTML = ''; // Clear existing options
+            
+            AVAILABLE_AIRPORTS.forEach(airport => {
+                const option = document.createElement('option');
+                option.value = airport.id;
+                option.textContent = airport.name;
+                selector.appendChild(option);
+            });
+            
+            // Pre-select the default airport and trigger load
+            selector.value = currentAirportId;
+            selector.addEventListener('change', (e) => {
+                currentAirportId = e.target.value;
+                loadWaitTimeData(currentAirportId);
+            });
+            
+            // Enable reporting now that an airport is selected
+            document.getElementById('submit-report').disabled = false;
+        };
+        
+        const loadWaitTimeData = (airportId) => {
+            currentAirportData = MOCK_WAIT_TIME_DATA[airportId];
+            
+            // Clear current display
+            document.getElementById('current-airport-name').textContent = AVAILABLE_AIRPORTS.find(a => a.id === airportId)?.name || '...';
+            
+            if (currentAirportData) {
+                renderWaitTimes(currentAirportData);
+                
+                // If the trends tab is active, re-render the chart
+                if (!document.getElementById('trends-view').classList.contains('hidden')) {
+                    const trendType = document.getElementById('trend-checkpoint-selector').value;
+                    renderTrendsView(currentAirportData, trendType);
+                }
+            } else {
+                 document.getElementById('wait-time-cards').innerHTML = `<p class="text-red-500 text-center py-8">No data available for ${airportId}. Try selecting a different airport.</p>`;
+            }
+            updateFavoriteButtonIcon(airportId);
+        };
+
+        const getStatusClasses = (waitTime, historicalAvg) => {
+            let status = 'low';
+            if (waitTime > historicalAvg * 1.3) {
+                status = 'high';
+            } else if (waitTime > historicalAvg * 0.8) {
+                status = 'moderate';
+            }
+
+            switch (status) {
+                case 'high':
+                    return { text: 'High Traffic', bg: 'wait-time-bad', icon: '🚨' };
+                case 'moderate':
+                    return { text: 'Moderate Traffic', bg: 'wait-time-moderate', icon: '⚠️' };
+                case 'low':
+                default:
+                    return { text: 'Low Traffic', bg: 'wait-time-good', icon: '✅' };
+            }
+        };
+
+        const renderWaitTimes = (data) => {
+            const container = document.getElementById('wait-time-cards');
+            let maxWaitTime = 0;
+            
+            if (!data || !data.checkpoints || data.checkpoints.length === 0) {
+                 container.innerHTML = '<p class="text-gray-500 text-center py-8">No data found for this location.</p>';
+                 return;
+            }
+            
+            let html = '';
+            const checkpoints = data.checkpoints;
+
+            if (data.lastUpdated) {
+                const date = new Date(data.lastUpdated);
+                document.getElementById('last-updated').textContent = `Last Updated: ${date.toLocaleTimeString()}`;
+            }
+
+            checkpoints.forEach(cp => {
+                const { text, bg, icon } = getStatusClasses(cp.waitTimeMinutes, cp.historicalAverage);
+                maxWaitTime = Math.max(maxWaitTime, cp.waitTimeMinutes);
+
+                // Checkpoint Details added here
+                let detailText = cp.details || 'Standard queue with staff monitoring.';
+                if (cp.type === 'PreCheck') detailText = 'Dedicated lane for TSA PreCheck members. Faster processing.';
+                if (cp.type === 'Premium') detailText = 'Expedited lane for Clear or airline premium customers.';
+
+
+                html += `
+                    <div class="flex flex-col p-4 mb-4 ${bg} rounded-xl card">
+                        <div class="flex items-start justify-between">
+                            <div class="flex flex-col">
+                                <h3 class="text-xl font-bold">${cp.name}</h3>
+                                <p class="text-sm font-medium opacity-80">${cp.type} Lane</p>
+                            </div>
+                            <div class="text-right flex items-center">
+                                <div class="text-4xl font-extrabold">${cp.waitTimeMinutes}<span class="text-base font-normal ml-1">min</span></div>
+                                <div class="status-badge px-3 py-1 rounded-full text-xs font-semibold self-start ml-4 flex items-center bg-white/50 border border-gray-200">
+                                    ${icon} <span class="ml-1">${text}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-3 pt-3 border-t border-gray-300/50">
+                            <p class="text-xs text-gray-700">
+                                <strong>Details:</strong> ${detailText}
+                                <span class="ml-4 text-xs text-gray-600">Avg: ${cp.historicalAverage} min</span>
+                            </p>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+            updateLiveLineStatus(maxWaitTime);
+        };
+        
+        // --- Live Line Status Visual Update ---
+        
+        const updateLiveLineStatus = (maxWaitTime) => {
+            const container = document.getElementById('live-view-container');
+            let imageColor = '4ade80'; // Green (Low)
+            let imageText = 'LINE IS OPEN';
+            let description = 'Minimal waiting. Proceed quickly.';
+
+            if (maxWaitTime > 20) {
+                imageColor = 'ef4444'; // Red (High)
+                imageText = 'LONG_WAIT_EXPECTED';
+                description = 'The lines are long. Expect significant delays.';
+            } else if (maxWaitTime > 10) {
+                imageColor = 'facc15'; // Yellow (Moderate)
+                imageText = 'MODERATE_TRAFFIC';
+                description = 'The line is moving steadily but has a visible queue.';
+            }
+            
+            const imageUrl = `https://placehold.co/400x180/${imageColor}/ffffff?text=${imageText}`;
+            
+            container.innerHTML = `
+                <img src="${imageUrl}" alt="Live Line Status Simulation" class="w-full rounded-lg mb-3 shadow-inner border border-gray-200" style="object-fit: cover; height: 180px;">
+                <p class="text-sm font-semibold text-gray-700">${imageText.replace(/_/g, ' ')}</p>
+                <p class="text-xs text-gray-500">${description}</p>
+            `;
+        }
+
+        // --- TRENDS & PREDICTION (Chart.js) ---
+        
+        const setupTrendSelector = () => {
+            document.getElementById('trend-checkpoint-selector').addEventListener('change', (e) => {
+                if (currentAirportData) {
+                    renderTrendsView(currentAirportData, e.target.value);
+                }
+            });
+        };
+
+        function generatePrediction(historicalData) {
+            // Simple Mock AI Prediction: Extrapolate the last 4 hours trend slightly
+            const prediction = [];
+            const lastDataPoints = historicalData.slice(-4);
+            // Ensure there are enough data points for trend calculation
+            if (lastDataPoints.length < 4) return [historicalData[historicalData.length - 1].avgWait, historicalData[historicalData.length - 1].avgWait, historicalData[historicalData.length - 1].avgWait]; 
+
+            const trend = (lastDataPoints[3].avgWait - lastDataPoints[0].avgWait) / 3;
+
+            // Generate 3 hours of predictions
+            for (let i = 1; i <= 3; i++) {
+                const predictedWait = Math.max(5, Math.round(historicalData[historicalData.length - 1].avgWait + trend * i));
+                prediction.push(predictedWait);
+            }
+            return prediction;
+        }
+        
+        function generateSummary(historicalData, predictionData) {
+            const currentWait = historicalData[historicalData.length - 1].avgWait;
+            const predictedPeak = Math.max(...predictionData);
+            const peakTime = predictionData.indexOf(predictedPeak) + 1; // Time in hours from now
+            
+            let summary = `The current wait time is <b>${currentWait} minutes</b>. `;
+            
+            if (predictedPeak > currentWait * 1.2) {
+                summary += `Our AI predicts a significant <b>peak of ${predictedPeak} minutes</b> in the next ${peakTime} hours. We recommend proceeding immediately.`;
+            } else if (predictedPeak < currentWait * 0.8) {
+                summary += `The trend is highly favorable, with wait times predicted to <b>fall to ${predictedPeak} minutes</b> within the next 3 hours. Travel during this predicted lower period.`;
+            } else {
+                summary += `The wait time is expected to remain stable, fluctuating between ${Math.min(...predictionData)} and ${predictedPeak} minutes over the next few hours.`;
+            }
+            
+            return summary;
+        }
+
+        const renderTrendsView = (data, type) => {
+            const chartCanvas = document.getElementById('wait-time-chart');
+            const summaryEl = document.getElementById('ai-prediction-summary');
+
+            const filteredData = data.historicalData.filter(d => d.type === type);
+            
+            if (!filteredData || filteredData.length === 0) {
+                 summaryEl.innerHTML = `<p class="text-red-500">No historical data available for the ${type} checkpoint at this location.</p>`;
+                 if (waitTimeChart) waitTimeChart.destroy();
+                 return;
+            }
+
+            // 1. Prepare Data
+            const historicalWaitTimes = filteredData.map(d => d.avgWait);
+            const predictionWaitTimes = generatePrediction(filteredData);
+            const labels = filteredData.map(d => `${d.hourOffset}h ago`).concat(['Now', '1h ahead', '2h ahead', '3h ahead']);
+            
+            // Combine historical and prediction data for the chart
+            const chartData = historicalWaitTimes.concat(predictionWaitTimes.slice(0, 1)); // Historical + "Now" point
+            const predictionStart = new Array(historicalWaitTimes.length).fill(NaN).concat([historicalWaitTimes[historicalWaitTimes.length - 1]].concat(predictionWaitTimes));
+
+            // 2. Generate Prediction Summary
+            summaryEl.innerHTML = generateSummary(filteredData, predictionWaitTimes);
+
+            // 3. Destroy old chart instance if it exists
+            if (waitTimeChart) {
+                waitTimeChart.destroy();
+            }
+
+            // 4. Create new chart
+            waitTimeChart = new Chart(chartCanvas, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Historical Wait Time (min)',
+                            data: chartData,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 3,
+                            pointHoverRadius: 5,
+                        },
+                        {
+                            label: 'AI Prediction',
+                            data: predictionStart,
+                            borderColor: '#f97316',
+                            borderDash: [5, 5],
+                            backgroundColor: 'transparent',
+                            tension: 0.4,
+                            // Dynamic point radius to only show points starting from "Now"
+                            pointRadius: historicalWaitTimes.map((_, i) => i === historicalWaitTimes.length -1 ? 5 : 3).concat([5, 5, 5]),
+                            pointHoverRadius: 7,
+                            spanGaps: true // Ensures the dashed line starts from the "Now" point
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Wait Time (Minutes)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: `24-Hour Trend & 3-Hour Forecast for ${type}`
+                        }
+                    }
+                }
+            });
+        };
+
+        // --- Crowdsourcing Report Handler (LOCAL UPDATE ONLY) ---
+
+        document.getElementById('submit-report').addEventListener('click', () => {
+            const type = document.getElementById('report-checkpoint').value;
+            const timeStr = document.getElementById('report-time').value;
+            const time = parseInt(timeStr);
+            const messageEl = document.getElementById('report-message');
+            messageEl.classList.remove('hidden', 'text-green-600', 'text-red-600');
+            messageEl.classList.add('text-blue-600');
+            messageEl.textContent = 'Submitting...';
+
+            if (!type || isNaN(time) || time < 1 || time > 120) {
+                messageEl.textContent = 'Please select a checkpoint and enter a valid time (1-120 minutes).';
+                messageEl.classList.replace('text-blue-600', 'text-red-600');
+                return;
+            }
+
+            if (!currentAirportId || !currentAirportData) {
+                messageEl.textContent = 'No airport selected.';
+                messageEl.classList.replace('text-blue-600', 'text-red-600');
+                return;
+            }
+            
+            // Update the local in-memory data
+            let updated = false;
+            
+            const updatedCheckpoints = currentAirportData.checkpoints.map(cp => {
+                if (cp.type === type) {
+                    // Simple blending: New time is average of reported and current time
+                    const newTime = Math.round((time + cp.waitTimeMinutes) / 2);
+                    cp.waitTimeMinutes = newTime;
+                    updated = true;
+                }
+                return cp;
+            });
+            
+            if (updated) {
+                currentAirportData.checkpoints = updatedCheckpoints;
+                currentAirportData.lastUpdated = Date.now();
+                MOCK_WAIT_TIME_DATA[currentAirportId] = currentAirportData;
+                
+                // Rerender UI with new local data
+                renderWaitTimes(currentAirportData); 
+
+                document.getElementById('report-time').value = '';
+                document.getElementById('report-checkpoint').value = '';
+                messageEl.textContent = `Wait time updated successfully for this session!`;
+                messageEl.classList.replace('text-blue-600', 'text-green-600');
+            } else {
+                messageEl.textContent = 'Could not find matching checkpoint to update.';
+                messageEl.classList.replace('text-blue-600', 'text-red-600');
+            }
+            
+            setTimeout(() => { messageEl.classList.add('hidden'); }, 5000);
+        });
+
+        // --- USER FAVORITES MANAGEMENT (LOCAL ONLY) ---
+        // Since database is removed, favorites are purely local/session-based now.
+        let userFavorites = [];
+
+        const updateFavoriteButtonIcon = (airportId) => {
+            const iconEl = document.getElementById('favorite-status-icon');
+            
+            if (userFavorites.includes(airportId)) {
+                iconEl.textContent = '★'; // Solid star for favorite
+                iconEl.classList.add('text-yellow-500');
+                iconEl.classList.remove('text-gray-400');
+                iconEl.title = 'Remove from Favorites';
+            } else {
+                iconEl.textContent = '☆'; // Hollow star for non-favorite
+                iconEl.classList.remove('text-yellow-500');
+                iconEl.classList.add('text-gray-400');
+                iconEl.title = 'Add to Favorites';
+            }
+        };
+
+        document.getElementById('favorite-status-icon').addEventListener('click', () => {
+            const airportId = document.getElementById('airport-selector').value;
+            if (!airportId) return;
+
+            if (userFavorites.includes(airportId)) {
+                // Remove Favorite
+                userFavorites = userFavorites.filter(id => id !== airportId);
+            } else {
+                // Add Favorite
+                userFavorites.push(airportId);
+            }
+            updateFavoriteButtonIcon(airportId);
+        });
+        
+        // --- Gemini API "Can I Bring This?" Feature ---
+        // This feature remains as it relies only on the external Gemini API, not Firebase.
+
+        document.getElementById('search-tsa-item').addEventListener('click', async () => {
+            const query = document.getElementById('tsa-item-query').value.trim();
+            const resultDiv = document.getElementById('tsa-item-result');
+            const resultText = document.getElementById('tsa-result-text');
+            const loading = document.getElementById('tsa-loading');
+
+            if (!query) {
+                resultDiv.classList.remove('hidden');
+                resultText.textContent = 'Please enter an item to check.';
+                return;
+            }
+
+            loading.classList.remove('hidden');
+            resultText.textContent = '';
+            resultDiv.classList.remove('hidden');
+
+            const systemPrompt = "You are a TSA guidelines assistant. Your response must be concise, starting directly with the allowance status (ALLOWED, NOT ALLOWED, or CONDITIONAL). If conditional, clearly state the rule (e.g., size, quantity, placement in checked/carry-on bags). Base your answer on current public TSA guidelines.";
+            const userQuery = `Check the TSA allowance status for: ${query}.`;
+            const apiKey = ""; 
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                tools: [{ "google_search": {} }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+            
+            const maxRetries = 3;
+            let currentDelay = 1000;
+
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 429 && i < maxRetries - 1) {
+                            await new Promise(resolve => setTimeout(resolve, currentDelay));
+                            currentDelay *= 2;
+                            continue;
+                        }
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    loading.classList.add('hidden');
+
+                    const candidate = result.candidates?.[0];
+                    if (candidate && candidate.content?.parts?.[0]?.text) {
+                        let text = candidate.content.parts[0].text;
+                        
+                        let sourcesHtml = '';
+                        const groundingMetadata = candidate.groundingMetadata;
+                        if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                            const sources = groundingMetadata.groundingAttributions
+                                .map(attribution => ({
+                                    uri: attribution.web?.uri,
+                                    title: attribution.web?.title,
+                                }))
+                                .filter(source => source.uri && source.title);
+
+                            if (sources.length > 0) {
+                                sourcesHtml = '<p class="mt-3 pt-2 border-t border-gray-200 text-xs text-gray-500">Source: ';
+                                sources.forEach((source, index) => {
+                                    sourcesHtml += `<a href="${source.uri}" target="_blank" class="text-blue-500 hover:underline">${source.title}</a>${index < sources.length - 1 ? ', ' : ''}`;
+                                });
+                                sourcesHtml += '</p>';
+                            }
+                        }
+
+                        resultText.innerHTML = text + sourcesHtml;
+                        return;
+                    } else {
+                        resultText.textContent = "Sorry, I couldn't get a clear guideline for that item.";
+                    }
+                    break;
+                } catch (error) {
+                    loading.classList.add('hidden');
+                    console.error("Gemini API call failed:", error);
+                    resultText.textContent = `An error occurred while checking the item: ${error.message}.`;
+                    break;
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>
