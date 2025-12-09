@@ -5,23 +5,25 @@ import random
 
 app = FastAPI()
 
-# Allow your frontend to fetch from this backend during development
+# Allow frontend to call this API from any origin (you can restrict later)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # later you can restrict to your GitHub Pages domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-AVAILABLE_AIRPORTS = [
-    "SFO_T3",
-    "LAX_T1",
-    "JFK_T4",
-]
+AVAILABLE_AIRPORTS = ["SFO_T3", "LAX_T1", "JFK_T4"]
+
 
 def generate_mock_data(airport_id: str):
-    code, terminal = airport_id.split("_")
+    """Generate mock checkpoint + historical wait time data."""
+    # Expect airport_id like "SFO_T3"
+    if "_" in airport_id:
+        code, terminal = airport_id.split("_", 1)
+    else:
+        code, terminal = airport_id, ""
 
     checkpoints = [
         {
@@ -49,11 +51,13 @@ def generate_mock_data(airport_id: str):
         for cp in checkpoints:
             noise = random.randint(-5, 5)
             val = max(2, cp["historicalAverage"] + noise)
-            historical.append({
-                "hourOffset": hour,
-                "avgWait": val,
-                "type": cp["type"],
-            })
+            historical.append(
+                {
+                    "hourOffset": hour,
+                    "avgWait": val,
+                    "type": cp["type"],
+                }
+            )
 
     return {
         "airportId": airport_id,
@@ -64,8 +68,16 @@ def generate_mock_data(airport_id: str):
         "historicalData": historical,
     }
 
+
+@app.get("/")
+def root():
+    """Simple health check."""
+    return {"status": "ok", "message": "Airport Security Tracker API running"}
+
+
 @app.get("/api/wait-times/{airport_id}")
 def get_wait_times(airport_id: str):
+    """Return mock wait time data for the given airport."""
     if airport_id not in AVAILABLE_AIRPORTS:
         airport_id = "SFO_T3"
     return generate_mock_data(airport_id)
