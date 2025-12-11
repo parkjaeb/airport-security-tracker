@@ -295,37 +295,38 @@
         
         const API_BASE_URL = "https://airport-security-backend.onrender.com";
 
-        const loadWaitTimeData = async (airportId) => {
-    const airportMeta = AVAILABLE_AIRPORTS.find(a => a.id === airportId);
-    document.getElementById('current-airport-name').textContent = airportMeta?.name || '...';
+const loadWaitTimeData = async (airportId) => {
+  const airportMeta = AVAILABLE_AIRPORTS.find(a => a.id === airportId);
+  document.getElementById('current-airport-name').textContent = airportMeta?.name || '...';
 
-    const waitCards = document.getElementById('wait-time-cards');
-    waitCards.innerHTML = '<p class="text-gray-500 text-center py-8">Loading real-time data...</p>';
+  const waitCards = document.getElementById('wait-time-cards');
+  waitCards.innerHTML = '<p class="text-gray-500 text-center py-8">Loading real-time data...</p>';
 
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/wait-times/${airportId}`);
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/wait-times?airport_id=${encodeURIComponent(airportId)}`
+    );
 
-        const data = await response.json();
-        currentAirportData = data;
-
-        // Render main wait-time cards
-        renderWaitTimes(currentAirportData);
-
-        // If trends tab is active, re-render chart
-        if (!document.getElementById('trends-view').classList.contains('hidden')) {
-            const trendType = document.getElementById('trend-checkpoint-selector').value;
-            renderTrendsView(currentAirportData, trendType);
-        }
-
-        updateFavoriteButtonIcon(airportId);
-    } catch (err) {
-        console.error("Failed to load wait time data:", err);
-        waitCards.innerHTML =
-            '<p class="text-red-500 text-center py-8">Error loading data. Please try again.</p>';
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
+
+    const data = await response.json();
+    currentAirportData = data;
+
+    renderWaitTimes(currentAirportData);
+
+    if (!document.getElementById('trends-view').classList.contains('hidden')) {
+      const trendType = document.getElementById('trend-checkpoint-selector').value;
+      renderTrendsView(currentAirportData, trendType);
+    }
+
+    updateFavoriteButtonIcon(airportId);
+  } catch (err) {
+    console.error("Failed to load wait time data:", err);
+    waitCards.innerHTML =
+      '<p class="text-red-500 text-center py-8">Error loading data. Please try again.</p>';
+  }
 };
 
         const getStatusClasses = (waitTime, historicalAvg) => {
