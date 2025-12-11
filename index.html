@@ -304,7 +304,7 @@ const loadWaitTimeData = async (airportId) => {
 
   try {
     const response = await fetch(
-      `${API_BASE_URL}/api/wait-times?airport_id=${encodeURIComponent(airportId)}`
+      `${API_BASE_URL}/api/wait-times/{encodeURIComponent(airportId)}`
     );
 
     if (!response.ok) {
