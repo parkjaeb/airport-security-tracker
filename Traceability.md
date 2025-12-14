@@ -132,5 +132,35 @@ Loaded the frontend locally while the backend was running and confirmed:
 	•	Changing airports triggered new backend requests
 	•	Dynamic wait time and trend data appeared correctly
 
-This completed the full-stack integration.
+⸻
 
+🟦 6. Post-Integration fixes and deployment stabilization
+
+	•	Fixed frontend API request format to match backend route:
+	•	Backend endpoint uses a path parameter: /api/wait-times/{airport_id}
+	•	Frontend was incorrectly calling a query param: /api/wait-times?airport_id=...
+	•	Updated the frontend fetch URL to /api/wait-times/${airportId} so it returns 200 instead of Not Found.
+
+⸻
+
+🟦 7. Confirmed Render backend deployment configuration
+
+	•	Set Render Web Service Root Directory to backend
+	•	Build Command uses repo-root requirements file: pip install -r ../requirements.txt
+	•	Start Command runs backend/main.py correctly: uvicorn main:app --host 0.0.0.0 --port $PORT
+	•	Verified backend routes work via browser endpoints (/, /test, and /api/wait-times/...).
+
+⸻
+
+🟦 8. Verified local backend behavior matches production
+
+	•	Confirmed FastAPI runs locally and returns expected JSON for /test and /api/wait-times/SFO_T3.
+
+⸻
+
+🟦 9. Added mock data to backend API responses:
+
+	•	Updated backend wait-times endpoint to return non-empty mock checkpoints and historicalData
+	•	Confirmed frontend UI now has data to render (cards + chart/trends can display meaningful content).
+
+⸻
