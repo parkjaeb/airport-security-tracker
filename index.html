@@ -567,59 +567,52 @@ const loadWaitTimeData = async (airportId) => {
 
         // --- Crowdsourcing Report Handler (LOCAL UPDATE ONLY) ---
 
-        document.getElementById('submit-report').addEventListener('click', () => {
-            const type = document.getElementById('report-checkpoint').value;
+        document.getElementById('submit-report').addEventListener('click', async () => {
+            const type = document.getElementById('report-checkpoint').value;   // General | PreCheck | Premium
             const timeStr = document.getElementById('report-time').value;
-            const time = parseInt(timeStr);
+            const time = parseInt(timeStr, 10);
+
             const messageEl = document.getElementById('report-message');
             messageEl.classList.remove('hidden', 'text-green-600', 'text-red-600');
             messageEl.classList.add('text-blue-600');
             messageEl.textContent = 'Submitting...';
 
-            if (!type || isNaN(time) || time < 1 || time > 120) {
-                messageEl.textContent = 'Please select a checkpoint and enter a valid time (1-120 minutes).';
+            if (!type || isNaN(time) || time < 1 || time > 180) {
+                messageEl.textContent = 'Please select a checkpoint and enter a valid time (1–180 minutes).';
                 messageEl.classList.replace('text-blue-600', 'text-red-600');
                 return;
             }
 
-            if (!currentAirportId || !currentAirportData) {
-                messageEl.textContent = 'No airport selected.';
-                messageEl.classList.replace('text-blue-600', 'text-red-600');
-                return;
-            }
-            
-            // Update the local in-memory data
-            let updated = false;
-            
-            const updatedCheckpoints = currentAirportData.checkpoints.map(cp => {
-                if (cp.type === type) {
-                    // Simple blending: New time is average of reported and current time
-                    const newTime = Math.round((time + cp.waitTimeMinutes) / 2);
-                    cp.waitTimeMinutes = newTime;
-                    updated = true;
-                }
-                return cp;
-            });
-            
-            if (updated) {
-                currentAirportData.checkpoints = updatedCheckpoints;
-                currentAirportData.lastUpdated = Date.now();
-                MOCK_WAIT_TIME_DATA[currentAirportId] = currentAirportData;
-                
-                // Rerender UI with new local data
-                renderWaitTimes(currentAirportData); 
+            try {
+                const payload = {
+                airportId: currentAirportId,
+                checkpointType: type,
+                reportedMinutes: time
+                };
+
+                const res = await fetch(`${API_BASE_URL}/api/report-wait-time`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                // Re-fetch wait times so UI reflects server state
+                await loadWaitTimeData(currentAirportId);
 
                 document.getElementById('report-time').value = '';
                 document.getElementById('report-checkpoint').value = '';
-                messageEl.textContent = `Wait time updated successfully for this session!`;
+                messageEl.textContent = 'Report submitted! Wait times updated.';
                 messageEl.classList.replace('text-blue-600', 'text-green-600');
-            } else {
-                messageEl.textContent = 'Could not find matching checkpoint to update.';
+            } catch (err) {
+                console.error('Report submit failed:', err);
+                messageEl.textContent = 'Failed to submit report. Please try again.';
                 messageEl.classList.replace('text-blue-600', 'text-red-600');
             }
-            
-            setTimeout(() => { messageEl.classList.add('hidden'); }, 5000);
-        });
+
+            setTimeout(() => messageEl.classList.add('hidden'), 4000);
+            });
 
         // --- USER FAVORITES MANAGEMENT (LOCAL ONLY) ---
         // Since database is removed, favorites are purely local/session-based now.
